@@ -1,5 +1,10 @@
+import sys
+
+sys.stdout.reconfigure(encoding='utf-8')
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+
+from services.news_fetcher import fetch_live_news
 
 # =====================================================
 # IMPORTS
@@ -10,19 +15,19 @@ from ml_model.predict import predict
 
 # ML MODEL 2
 from ml_model_2.predict import predict_disaster
+
 from ml_model_2.priority_engine import (
     calculate_priority,
     get_priority_level
 )
+
 from ml_model_2.weather_service import (
     get_weather_severity
 )
-from ml_model_2.action_engine import get_action
 
-# ML MODEL 3
-from ml_model_3.load_data import load_data
-from ml_model_3.map_data import generate_location_data
-
+from ml_model_2.action_engine import (
+    get_action
+)
 
 # =====================================================
 # APP
@@ -124,30 +129,198 @@ def analyze():
 
 
 # =====================================================
-# ROUTE 3 → DASHBOARD DATA
+# ROUTE 3 → LIVE DASHBOARD DATA
 # =====================================================
-
 @app.route("/disaster-data", methods=["GET"])
-def get_data():
+def get_dashboard_data():
 
     try:
 
-        train_df, dev_df, test_df = load_data()
+        print("\nDASHBOARD API CALLED\n")
 
-        df = generate_location_data(
-            test_df.head(200)
-        )
+        # ====================================
+        # FETCH LIVE NEWS
+        # ====================================
 
-        return jsonify(
-            df.to_dict(orient="records")
-        )
+        tweets = fetch_live_news()
+
+        print("LIVE NEWS:")
+        print(tweets)
+
+        # ====================================
+        # DEFAULT STRUCTURES
+        # ====================================
+
+        disaster_data = []
+
+        priority_stats = {
+            "HIGH": 0,
+            "MEDIUM": 0,
+            "LOW": 0
+        }
+
+        needs_count = {}
+
+        # ====================================
+        # IF EMPTY
+        # ====================================
+
+        if not tweets:
+
+            return jsonify({
+                "disaster": [],
+                "priority": priority_stats,
+                "needs": []
+            })
+
+        # ====================================
+        # PROCESS EACH NEWS
+        # ====================================
+
+        for tweet in tweets:
+
+            print("\nTWEET:")
+            print(tweet)
+
+            # ====================================
+            # DISASTER PREDICTION
+            # ====================================
+
+            disaster_result = predict_disaster(tweet)
+
+            print("DISASTER RESULT:")
+            print(disaster_result)
+
+            # ====================================
+            # HUMAN NEEDS
+            # ====================================
+
+            needs = predict(tweet)
+
+            print("NEEDS:")
+            print(needs)
+
+            # ====================================
+            # PRIORITY CALCULATION
+            # ====================================
+
+            single_disaster_count = (
+                1 if disaster_result == "Disaster"
+                else 0
+            )
+
+            single_ratio = (
+                single_disaster_count / 1
+            )
+
+            weather_severity = 2
+
+            score = calculate_priority(
+                single_disaster_count,
+                single_ratio,
+                weather_severity,
+                [tweet]
+            )
+
+            priority_level = get_priority_level(score)
+
+            print("PRIORITY:")
+            print(priority_level)
+
+            # ====================================
+            # COUNT PRIORITIES
+            # ====================================
+
+            if priority_level in priority_stats:
+
+                priority_stats[
+                    priority_level
+                ] += 1
+
+            # ====================================
+            # COUNT NEEDS
+            # ====================================
+
+            if isinstance(needs, list):
+
+                for need in needs:
+
+                    need = str(need)
+
+                    if need in needs_count:
+
+                        needs_count[need] += 1
+
+                    else:
+
+                        needs_count[need] = 1
+
+            elif isinstance(needs, str):
+
+                if needs in needs_count:
+
+                    needs_count[needs] += 1
+
+                else:
+
+                    needs_count[needs] = 1
+
+            # ====================================
+            # STORE DATA
+            # ====================================
+
+            disaster_data.append({
+
+                "location": "Live News",
+
+                "disaster": str(disaster_result),
+
+                "priority": priority_level,
+
+                "tweet": str(tweet)
+            })
+
+        # ====================================
+        # CONVERT NEEDS FORMAT
+        # ====================================
+
+        needs_response = []
+
+        for key, value in needs_count.items():
+
+            needs_response.append({
+
+                "name": key,
+
+                "count": value
+            })
+
+        # ====================================
+        # FINAL RESPONSE
+        # ====================================
+
+        final_response = {
+
+            "disaster": disaster_data,
+
+            "priority": priority_stats,
+
+            "needs": needs_response
+        }
+
+        print("\nFINAL RESPONSE:")
+        print(final_response)
+
+        return jsonify(final_response)
 
     except Exception as e:
+
+        print("\nDASHBOARD ERROR\n")
+        print(str(e))
 
         return jsonify({
             "error": str(e)
         }), 500
-
 
 # =====================================================
 # MAIN
