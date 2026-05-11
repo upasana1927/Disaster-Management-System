@@ -28,6 +28,9 @@ from ml_model_2.weather_service import (
 from ml_model_2.action_engine import (
     get_action
 )
+# ML MODEL 3
+from ml_model_3.predict import predict_disaster as predict_disaster_map
+from ml_model_3.locations import extract_locations
 
 # =====================================================
 # APP
@@ -321,6 +324,88 @@ def get_dashboard_data():
         return jsonify({
             "error": str(e)
         }), 500
+
+# =====================================================
+# ROUTE 4 → DISASTER MAP ANALYSIS (ML MODEL 3)
+# =====================================================
+# =====================================================
+# ROUTE 4 → DATASET BASED MAP ANALYSIS (Model 3)
+# =====================================================
+@app.route("/analyze-disaster-map", methods=["GET"])
+def analyze_disaster_map():
+
+    try:
+        # ✅ LOAD DATASET
+        from ml_model_3.load_data import load_data
+
+        train_df, dev_df, test_df = load_data()
+
+        # 👉 sirf test data use karna hai
+        df = test_df.sample(100)
+        results = []
+
+        # =========================
+        # PROCESS EACH TWEET
+        # =========================
+        for _, row in df.iterrows():
+
+            tweet = row["text"]
+
+            # 🔥 DISASTER PREDICTION
+            disaster = predict_disaster_map(tweet)
+
+            # 🔥 LOCATION EXTRACTION
+            locations = extract_locations(tweet)
+
+            if not locations:
+                results.append({
+                    "location": "Unknown",
+                    "disaster": disaster,
+                    "tweet": tweet
+                })
+            else:
+                for loc in locations:
+                    results.append({
+                        "location": loc,
+                        "disaster": disaster,
+                        "tweet": tweet
+                    })
+
+        # =========================
+        # PIE DATA
+        # =========================
+        disaster_counts = {}
+        for item in results:
+            d = item["disaster"]
+            disaster_counts[d] = disaster_counts.get(d, 0) + 1
+
+        pie_data = [
+            {"name": k, "value": v}
+            for k, v in disaster_counts.items()
+        ]
+
+        # =========================
+        # BAR DATA
+        # =========================
+        location_counts = {}
+        for item in results:
+            loc = item["location"]
+            location_counts[loc] = location_counts.get(loc, 0) + 1
+
+        bar_data = [
+            {"location": k, "count": v}
+            for k, v in location_counts.items()
+        ]
+
+        return jsonify({
+            "total": len(df),
+            "results": results,
+            "pie": pie_data,
+            "bar": bar_data
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =====================================================
 # MAIN

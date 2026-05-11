@@ -16,11 +16,11 @@ const Disaster = () => {
 
   useEffect(() => {
 
-    axios.get("http://localhost:5001/disaster-data")
+    axios.get("http://localhost:5001/analyze-disaster-map")
 
       .then(res => {
 
-        setData(res.data);
+        setData(res.data.results || []);
         setLoading(false);
 
       })

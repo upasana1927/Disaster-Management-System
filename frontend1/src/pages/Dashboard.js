@@ -135,8 +135,8 @@ function Dashboard() {
       setLoading(true);
 
       const res = await axios.get(
-        "http://localhost:5000/api/dashboard"
-      );
+  "http://localhost:5001/disaster-data"
+);
 
       // =========================================
       // REMOVE DUPLICATES
