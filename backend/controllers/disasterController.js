@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-exports.getDisasterMapData = async (req, res) => {
+exports.getDisasterData = async (req, res) => {
   try {
 
     const response = await axios.get(

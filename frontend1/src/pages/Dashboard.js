@@ -95,13 +95,7 @@ const disasterColors = {
   NonDisaster: "#2ecc71"
 };
 
-// =====================================================
-// DEFAULT LOCATION
-// =====================================================
 
-const cityCoords = {
-  "Live News": [20.5937, 78.9629]
-};
 
 // =====================================================
 // COMPONENT
@@ -134,10 +128,9 @@ function Dashboard() {
 
       setLoading(true);
 
-      const res = await axios.get(
+     const res = await axios.get(
   "http://localhost:5001/disaster-data"
 );
-
       // =========================================
       // REMOVE DUPLICATES
       // =========================================
@@ -200,10 +193,7 @@ function Dashboard() {
 
     fetchDashboard();
 
-    const interval =
-      setInterval(fetchDashboard, 30000);
-
-    return () => clearInterval(interval);
+    
 
   }, []);
 
@@ -282,6 +272,7 @@ function Dashboard() {
       {/* ========================================= */}
 
       <div className="dashboard-header">
+        
 
         <BackButton />
 
@@ -296,6 +287,12 @@ function Dashboard() {
           </p>
 
         </div>
+        <button
+    className="refresh-btn"
+    onClick={fetchDashboard}
+  >
+    Refresh Dashboard
+  </button>
 
       </div>
 
@@ -524,88 +521,125 @@ function Dashboard() {
 
       </div>
 
-      {/* ========================================= */}
-      {/* MAP */}
-      {/* ========================================= */}
+   {/* ========================================= */}
+{/* MAP */}
+{/* ========================================= */}
 
-      <div className="map-box">
+<div className="map-box">
 
-        <h3>
-          Live Disaster Map
-        </h3>
+  <h3>
+    Live Disaster Map
+  </h3>
 
-        <MapContainer
-          center={[20.5937, 78.9629]}
-          zoom={5}
-          className="map-container"
-        >
+  <div className="map-container">
 
-          <TileLayer
+    <MapContainer
+      center={[20.5937, 78.9629]}
+      zoom={5}
+      style={{
+        height: "100%",
+        width: "100%"
+      }}
+    >
 
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="&copy; OpenStreetMap contributors"
+      />
 
-            attribution="&copy; OpenStreetMap"
-          />
+      {
+        disasterData.map((d, i) => {
 
-          {
-            disasterData.map((d, i) => {
+          const icon = new L.Icon({
 
-              const coords =
-                cityCoords["Live News"];
+            iconUrl:
+              disasterMarkers[d.disaster]
+              || disasterMarkers.Other,
 
-              const icon = new L.Icon({
+            iconSize: [25, 41],
 
-                iconUrl:
-                  disasterMarkers[d.disaster]
-                  || disasterMarkers.Other,
+            iconAnchor: [12, 41],
 
-                iconSize: [25, 41],
+            popupAnchor: [1, -34],
 
-                iconAnchor: [12, 41],
+            shadowUrl:
+              "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 
-                popupAnchor: [0, -41],
+            shadowSize: [41, 41]
+          });
 
-                shadowUrl:
-                  "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png"
-              });
+          return (
 
-              return (
+            <Marker
+              key={i}
+              position={[
+                d.lat || 20.5937,
+                d.lng || 78.9629
+              ]}
+              icon={icon}
+            >
 
-                <Marker
-                  key={i}
-                  position={coords}
-                  icon={icon}
+              <Popup>
+
+                <div
+                  style={{
+                    minWidth: "220px"
+                  }}
                 >
 
-                  <Popup>
+                  <h3
+                    style={{
+                      margin: 0,
+                      marginBottom: "10px",
+                      color: "#111827"
+                    }}
+                  >
+                    {d.location}
+                  </h3>
 
-                    <div
-                      style={{
-                        minWidth: "220px"
-                      }}
-                    >
+                  <strong>
+                    Disaster:
+                  </strong>
 
-                      <strong>
-                        {d.disaster}
-                      </strong>
+                  {" "}
+                  {d.disaster}
 
-                      <br />
-                      <br />
+                  <br />
+                  <br />
 
-                      {d.tweet}
+                  <strong>
+                    Priority:
+                  </strong>
 
-                    </div>
+                  {" "}
+                  {d.priority}
 
-                  </Popup>
+                  <br />
+                  <br />
 
-                </Marker>
-              );
-            })
-          }
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      lineHeight: "1.6"
+                    }}
+                  >
+                    {d.tweet}
+                  </div>
 
-        </MapContainer>
+                </div>
 
-      </div>
+              </Popup>
+
+            </Marker>
+          );
+        })
+      }
+
+    </MapContainer>
+
+  </div>
+
+</div>
 
     </div>
   );

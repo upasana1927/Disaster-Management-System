@@ -1,6 +1,9 @@
 import sys
+import spacy
 
+from geopy.geocoders import Nominatim
 sys.stdout.reconfigure(encoding='utf-8')
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -28,6 +31,7 @@ from ml_model_2.weather_service import (
 from ml_model_2.action_engine import (
     get_action
 )
+
 # ML MODEL 3
 from ml_model_3.predict import predict_disaster as predict_disaster_map
 from ml_model_3.locations import extract_locations
@@ -39,7 +43,109 @@ from ml_model_3.locations import extract_locations
 app = Flask(__name__)
 CORS(app)
 
+# =====================================================
+# NLP + GEO
+# =====================================================
 
+nlp = spacy.load("en_core_web_sm")
+
+geolocator = Nominatim(
+    user_agent="disaster_dashboard"
+)
+
+# =====================================================
+# LOCATION EXTRACTION + GEO
+# =====================================================
+
+def extract_location_and_coords(text):
+
+    try:
+
+        doc = nlp(text)
+
+        locations = []
+
+        # =====================================
+        # EXTRACT LOCATION ENTITIES
+        # =====================================
+
+        for ent in doc.ents:
+
+            if ent.label_ in ["GPE", "LOC"]:
+
+                locations.append(ent.text)
+
+        # =====================================
+        # NO LOCATION FOUND
+        # =====================================
+
+        if not locations:
+
+            return {
+
+                "location": "Unknown",
+
+                "lat": 20.5937,
+
+                "lng": 78.9629
+            }
+
+        # =====================================
+        # FIRST LOCATION
+        # =====================================
+
+        location_name = locations[0]
+
+        print("EXTRACTED LOCATION:")
+        print(location_name)
+
+        # =====================================
+        # GEO CODING
+        # =====================================
+
+        geo = geolocator.geocode(location_name)
+
+        # =====================================
+        # SUCCESS
+        # =====================================
+
+        if geo:
+
+            return {
+
+                "location": location_name,
+
+                "lat": geo.latitude,
+
+                "lng": geo.longitude
+            }
+
+        # =====================================
+        # GEO FAILED
+        # =====================================
+
+        return {
+
+            "location": location_name,
+
+            "lat": 20.5937,
+
+            "lng": 78.9629
+        }
+
+    except Exception as e:
+
+        print("LOCATION ERROR:")
+        print(str(e))
+
+        return {
+
+            "location": "Unknown",
+
+            "lat": 20.5937,
+
+            "lng": 78.9629
+        }
 # =====================================================
 # ROUTE 1 → HUMAN NEEDS
 # =====================================================
@@ -81,6 +187,7 @@ def analyze():
         city = data.get("city", "")
 
         if not tweets:
+
             return jsonify({
                 "error": "No tweets provided"
             }), 400
@@ -134,6 +241,7 @@ def analyze():
 # =====================================================
 # ROUTE 3 → LIVE DASHBOARD DATA
 # =====================================================
+
 @app.route("/disaster-data", methods=["GET"])
 def get_dashboard_data():
 
@@ -141,18 +249,10 @@ def get_dashboard_data():
 
         print("\nDASHBOARD API CALLED\n")
 
-        # ====================================
-        # FETCH LIVE NEWS
-        # ====================================
-
         tweets = fetch_live_news()
 
         print("LIVE NEWS:")
         print(tweets)
-
-        # ====================================
-        # DEFAULT STRUCTURES
-        # ====================================
 
         disaster_data = []
 
@@ -164,10 +264,6 @@ def get_dashboard_data():
 
         needs_count = {}
 
-        # ====================================
-        # IF EMPTY
-        # ====================================
-
         if not tweets:
 
             return jsonify({
@@ -176,36 +272,36 @@ def get_dashboard_data():
                 "needs": []
             })
 
-        # ====================================
+        # =====================================================
         # PROCESS EACH NEWS
-        # ====================================
+        # =====================================================
 
         for tweet in tweets:
 
             print("\nTWEET:")
             print(tweet)
 
-            # ====================================
+            # =====================================================
             # DISASTER PREDICTION
-            # ====================================
+            # =====================================================
 
             disaster_result = predict_disaster(tweet)
 
             print("DISASTER RESULT:")
             print(disaster_result)
 
-            # ====================================
+            # =====================================================
             # HUMAN NEEDS
-            # ====================================
+            # =====================================================
 
             needs = predict(tweet)
 
             print("NEEDS:")
             print(needs)
 
-            # ====================================
-            # PRIORITY CALCULATION
-            # ====================================
+            # =====================================================
+            # PRIORITY
+            # =====================================================
 
             single_disaster_count = (
                 1 if disaster_result == "Disaster"
@@ -230,9 +326,9 @@ def get_dashboard_data():
             print("PRIORITY:")
             print(priority_level)
 
-            # ====================================
-            # COUNT PRIORITIES
-            # ====================================
+            # =====================================================
+            # PRIORITY COUNT
+            # =====================================================
 
             if priority_level in priority_stats:
 
@@ -240,9 +336,9 @@ def get_dashboard_data():
                     priority_level
                 ] += 1
 
-            # ====================================
-            # COUNT NEEDS
-            # ====================================
+            # =====================================================
+            # NEEDS COUNT
+            # =====================================================
 
             if isinstance(needs, list):
 
@@ -268,24 +364,45 @@ def get_dashboard_data():
 
                     needs_count[needs] = 1
 
-            # ====================================
+            # =====================================================
+            # LOCATION EXTRACTION
+            # =====================================================
+
+            location_data = extract_location_and_coords(
+                tweet
+            )
+
+            print("LOCATION:")
+            print(location_data)
+
+            # =====================================================
             # STORE DATA
-            # ====================================
+            # =====================================================
 
             disaster_data.append({
 
-                "location": "Live News",
+                "location":
+                    location_data["location"],
 
-                "disaster": str(disaster_result),
+                "lat":
+                    location_data["lat"],
 
-                "priority": priority_level,
+                "lng":
+                    location_data["lng"],
 
-                "tweet": str(tweet)
+                "disaster":
+                    str(disaster_result),
+
+                "priority":
+                    priority_level,
+
+                "tweet":
+                    str(tweet)
             })
 
-        # ====================================
-        # CONVERT NEEDS FORMAT
-        # ====================================
+        # =====================================================
+        # NEEDS RESPONSE
+        # =====================================================
 
         needs_response = []
 
@@ -298,9 +415,9 @@ def get_dashboard_data():
                 "count": value
             })
 
-        # ====================================
+        # =====================================================
         # FINAL RESPONSE
-        # ====================================
+        # =====================================================
 
         final_response = {
 
@@ -326,90 +443,193 @@ def get_dashboard_data():
         }), 500
 
 # =====================================================
-# ROUTE 4 → DISASTER MAP ANALYSIS (ML MODEL 3)
-# =====================================================
-# =====================================================
 # ROUTE 4 → DATASET BASED MAP ANALYSIS (Model 3)
 # =====================================================
+
 @app.route("/analyze-disaster-map", methods=["GET"])
 def analyze_disaster_map():
 
     try:
-        # ✅ LOAD DATASET
+
         from ml_model_3.load_data import load_data
 
         train_df, dev_df, test_df = load_data()
 
-        # 👉 sirf test data use karna hai
         df = test_df.sample(100)
+
         results = []
 
-        # =========================
-        # PROCESS EACH TWEET
-        # =========================
         for _, row in df.iterrows():
 
             tweet = row["text"]
 
-            # 🔥 DISASTER PREDICTION
+            # DISASTER PREDICTION
             disaster = predict_disaster_map(tweet)
 
-            # 🔥 LOCATION EXTRACTION
+            # LOCATION EXTRACTION
             locations = extract_locations(tweet)
 
             if not locations:
+
                 results.append({
                     "location": "Unknown",
                     "disaster": disaster,
                     "tweet": tweet
                 })
+
             else:
+
                 for loc in locations:
+
                     results.append({
                         "location": loc,
                         "disaster": disaster,
                         "tweet": tweet
                     })
 
-        # =========================
-        # PIE DATA
-        # =========================
+        # PIE CHART DATA
         disaster_counts = {}
+
         for item in results:
+
             d = item["disaster"]
-            disaster_counts[d] = disaster_counts.get(d, 0) + 1
+
+            disaster_counts[d] = (
+                disaster_counts.get(d, 0) + 1
+            )
 
         pie_data = [
+
             {"name": k, "value": v}
+
             for k, v in disaster_counts.items()
         ]
 
-        # =========================
-        # BAR DATA
-        # =========================
+        # BAR CHART DATA
         location_counts = {}
+
         for item in results:
+
             loc = item["location"]
-            location_counts[loc] = location_counts.get(loc, 0) + 1
+
+            location_counts[loc] = (
+                location_counts.get(loc, 0) + 1
+            )
 
         bar_data = [
+
             {"location": k, "count": v}
+
             for k, v in location_counts.items()
         ]
 
         return jsonify({
+
             "total": len(df),
+
             "results": results,
+
             "pie": pie_data,
+
             "bar": bar_data
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+
+# =====================================================
+# ROUTE 5 → MANUAL TWEET ANALYSIS (YOUR MODEL 3)
+# =====================================================
+
+# @app.route("/manual-disaster-analysis", methods=["POST"])
+# def manual_disaster_analysis():
+
+#     try:
+
+#         data = request.get_json()
+
+#         tweet = data.get("tweet", "")
+
+#         if not tweet:
+
+#             return jsonify({
+#                 "error": "Tweet is required"
+#             }), 400
+
+#         # DISASTER PREDICTION
+#         disaster = predict_disaster_map(tweet)
+
+#         # LOCATION EXTRACTION
+#         locations = extract_locations(tweet)
+
+#         if not locations:
+
+#             locations = ["Unknown"]
+
+#         return jsonify({
+
+#             "tweet": tweet,
+
+#             "disaster": disaster,
+
+#             "locations": locations
+
+#         })
+
+#     except Exception as e:
+
+#         return jsonify({
+#             "error": str(e)
+#         }), 500
+# =====================================================
+# ROUTE 5 → MANUAL TWEET ANALYSIS
+# =====================================================
+
+@app.route("/manual-disaster-analysis", methods=["POST"])
+def manual_disaster_analysis():
+
+    try:
+
+        data = request.get_json()
+
+        tweet = data.get("tweet", "")
+
+        # 🔥 Disaster prediction
+        disaster = predict_disaster_map(tweet)
+
+        # 🔥 Location extraction
+        locations = extract_locations(tweet)
+
+        if not locations:
+            locations = ["Unknown"]
+
+        return jsonify({
+
+            "tweet": tweet,
+
+            "disaster": disaster,
+
+            "locations": locations
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 # =====================================================
 # MAIN
 # =====================================================
 
 if __name__ == "__main__":
-    app.run(port=5001, debug=True)
+
+    app.run(
+        port=5001,
+        debug=True
+    )

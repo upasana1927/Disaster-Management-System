@@ -3,46 +3,105 @@ import axios from "axios";
 import BackButton from "../../components/BackButton/BackButton";
 
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, Legend
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
 } from "recharts";
 
 import "./Disaster.css";
 
 const Disaster = () => {
 
+  // =====================================================
+  // STATES
+  // =====================================================
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // 🔥 MANUAL INPUT
+  const [manualTweet, setManualTweet] = useState("");
+  const [manualResult, setManualResult] = useState(null);
+
+  // =====================================================
+  // FETCH DATASET ANALYSIS
+  // =====================================================
+
   useEffect(() => {
 
-    axios.get("http://localhost:5001/analyze-disaster-map")
+    axios
+      .get("http://localhost:5001/analyze-disaster-map")
 
-      .then(res => {
+      .then((res) => {
 
         setData(res.data.results || []);
+
         setLoading(false);
 
       })
 
-      .catch(err => {
+      .catch((err) => {
 
         console.log(err);
+
         setLoading(false);
 
       });
 
   }, []);
 
-  // Filter valid locations
+  // =====================================================
+  // MANUAL ANALYSIS
+  // =====================================================
+
+  const analyzeManualTweet = async () => {
+
+    if (!manualTweet.trim()) return;
+
+    try {
+
+      const res = await axios.post(
+
+        "http://localhost:5001/manual-disaster-analysis",
+
+        {
+          tweet: manualTweet
+        }
+      );
+
+      setManualResult(res.data);
+
+    } catch (err) {
+
+      console.log(err);
+
+    }
+  };
+
+  // =====================================================
+  // FILTER DATA
+  // =====================================================
+
   const filteredData = data.filter(
-    item => item.location && item.location.length > 2
+    item =>
+      item.location &&
+      item.location.length > 2
   );
 
-  // Top locations
+  // =====================================================
+  // TOP LOCATIONS
+  // =====================================================
+
   const locationCounts = {};
 
-  filteredData.forEach(item => {
+  filteredData.forEach((item) => {
 
     locationCounts[item.location] =
       (locationCounts[item.location] || 0) + 1;
@@ -55,16 +114,24 @@ const Disaster = () => {
 
     .slice(0, 5);
 
-  // Bar chart data
-  const barData = topLocations.map(([location, count]) => ({
-    location,
-    count
-  }));
+  // =====================================================
+  // BAR DATA
+  // =====================================================
 
-  // Pie chart data
+  const barData = topLocations.map(
+    ([location, count]) => ({
+      location,
+      count
+    })
+  );
+
+  // =====================================================
+  // PIE DATA
+  // =====================================================
+
   const disasterCounts = {};
 
-  filteredData.forEach(item => {
+  filteredData.forEach((item) => {
 
     disasterCounts[item.disaster] =
       (disasterCounts[item.disaster] || 0) + 1;
@@ -77,6 +144,10 @@ const Disaster = () => {
       value: count
     })
   );
+
+  // =====================================================
+  // LOADING
+  // =====================================================
 
   if (loading) {
 
@@ -94,11 +165,16 @@ const Disaster = () => {
     );
   }
 
+  // =====================================================
+  // MAIN UI
+  // =====================================================
+
   return (
 
     <div className="disaster-container">
 
       {/* HEADER */}
+
       <div className="disaster-header">
 
         <BackButton />
@@ -111,7 +187,76 @@ const Disaster = () => {
 
       </div>
 
-      {/* Top Locations */}
+      {/* =====================================================
+          MANUAL TWEET ANALYSIS
+      ===================================================== */}
+
+      <div className="dashboard-card">
+
+        <h2>
+          🧠 Manual Tweet Analysis
+        </h2>
+
+        <textarea
+
+          placeholder="Enter disaster related tweet..."
+
+          value={manualTweet}
+
+          onChange={(e) =>
+            setManualTweet(e.target.value)
+          }
+
+          className="manual-input"
+
+        />
+
+        <button
+
+          onClick={analyzeManualTweet}
+
+          className="analyze-btn"
+
+        >
+          Analyze Tweet
+        </button>
+
+        {manualResult && (
+
+          <div className="manual-result">
+
+            <h3>
+              Prediction Result
+            </h3>
+
+            <p>
+              <b>🌪️ Disaster:</b>
+              {" "}
+              {manualResult.disaster}
+            </p>
+
+            <p>
+              <b>📍 Locations:</b>
+              {" "}
+              {manualResult.locations.join(", ")}
+            </p>
+
+            <p>
+              <b>📝 Tweet:</b>
+              {" "}
+              {manualResult.tweet}
+            </p>
+
+          </div>
+
+        )}
+
+      </div>
+
+      {/* =====================================================
+          TOP LOCATIONS
+      ===================================================== */}
+
       <div className="dashboard-card">
 
         <h2>
@@ -132,77 +277,76 @@ const Disaster = () => {
 
       </div>
 
-      {/* 📊 Bar Chart */}
-<div className="dashboard-card">
+      {/* =====================================================
+          BAR CHART
+      ===================================================== */}
 
-  <h2>
-    🔮📈 Top Locations
-  </h2>
-
-  <div className="chart-wrapper">
-
-    <BarChart
-      width={700}
-      height={320}
-      data={barData}
-    >
-
-      <CartesianGrid
-        strokeDasharray="3 3"
-        stroke="#ddd6fe"
-      />
-
-      <XAxis
-        dataKey="location"
-        tick={{ fill: "#6b7280" }}
-      />
-
-      <YAxis
-        tick={{ fill: "#6b7280" }}
-      />
-
-      <Tooltip
-        contentStyle={{
-          borderRadius: "16px",
-          border: "none",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
-          background: "rgba(255,255,255,0.95)"
-        }}
-      />
-
-      <Bar
-        dataKey="count"
-        radius={[12,12,0,0]}
-      >
-
-        {barData.map((entry, index) => (
-
-          <Cell
-            key={`cell-${index}`}
-            fill={[
-              "#8b5cf6", // purple
-              "#ec4899", // pink
-              "#3b82f6", // blue
-              "#14b8a6", // teal
-              "#f59e0b"  // orange
-            ][index % 5]}
-          />
-
-        ))}
-
-      </Bar>
-
-    </BarChart>
-
-  </div>
-
-</div>
-
-      {/* 🥧 Pie Chart */}
       <div className="dashboard-card">
 
         <h2>
-          🪄🥧 Disaster Distribution
+          📈 Top Locations Chart
+        </h2>
+
+        <div className="chart-wrapper">
+
+          <BarChart
+            width={700}
+            height={320}
+            data={barData}
+          >
+
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#ddd6fe"
+            />
+
+            <XAxis
+              dataKey="location"
+              tick={{ fill: "#6b7280" }}
+            />
+
+            <YAxis
+              tick={{ fill: "#6b7280" }}
+            />
+
+            <Tooltip />
+
+            <Bar
+              dataKey="count"
+              radius={[12, 12, 0, 0]}
+            >
+
+              {barData.map((entry, index) => (
+
+                <Cell
+                  key={`cell-${index}`}
+                  fill={[
+                    "#8b5cf6",
+                    "#ec4899",
+                    "#3b82f6",
+                    "#14b8a6",
+                    "#f59e0b"
+                  ][index % 5]}
+                />
+
+              ))}
+
+            </Bar>
+
+          </BarChart>
+
+        </div>
+
+      </div>
+
+      {/* =====================================================
+          PIE CHART
+      ===================================================== */}
+
+      <div className="dashboard-card">
+
+        <h2>
+          🥧 Disaster Distribution
         </h2>
 
         <div className="chart-wrapper">
@@ -210,30 +354,30 @@ const Disaster = () => {
           <PieChart width={450} height={320}>
 
             <Pie
-  data={pieData}
-  dataKey="value"
-  nameKey="name"
-  outerRadius={110}
-  label
->
+              data={pieData}
+              dataKey="value"
+              nameKey="name"
+              outerRadius={110}
+              label
+            >
 
-  {pieData.map((entry, index) => (
+              {pieData.map((entry, index) => (
 
-    <Cell
-      key={`cell-${index}`}
-      fill={[
-        "#8b5cf6", // purple
-        "#ec4899", // pink
-        "#3b82f6", // blue
-        "#14b8a6", // teal
-        "#f59e0b", // orange
-        "#ef4444"  // red
-      ][index % 6]}
-    />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={[
+                    "#8b5cf6",
+                    "#ec4899",
+                    "#3b82f6",
+                    "#14b8a6",
+                    "#f59e0b",
+                    "#ef4444"
+                  ][index % 6]}
+                />
 
-  ))}
+              ))}
 
-</Pie>
+            </Pie>
 
             <Legend />
 
@@ -245,7 +389,10 @@ const Disaster = () => {
 
       </div>
 
-      {/* TABLE */}
+      {/* =====================================================
+          TABLE
+      ===================================================== */}
+
       <div className="dashboard-card">
 
         <h2>
@@ -259,8 +406,11 @@ const Disaster = () => {
             <thead>
 
               <tr>
+
                 <th>Location</th>
+
                 <th>Disaster</th>
+
               </tr>
 
             </thead>
@@ -287,7 +437,10 @@ const Disaster = () => {
 
       </div>
 
-      {/* SAMPLE TWEETS */}
+      {/* =====================================================
+          SAMPLE TWEETS
+      ===================================================== */}
+
       <div className="dashboard-card">
 
         <h2>
